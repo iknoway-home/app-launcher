@@ -4,3 +4,14 @@ dist/
 src-tauri/target/
 *.log
 docs-html/
+
+# === 共通ベースライン ===
+build/
+.env
+.env.local
+.dev.vars
+plans/*.html
+test-results/
+playwright-report/
+.wrangler/
+.playwright-mcp/
