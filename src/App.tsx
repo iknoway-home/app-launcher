@@ -2,12 +2,12 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   ArrowDown, ArrowUp, Check, ChevronRight, Clock3, Command, Download, ExternalLink, Folder, FolderOpen,
-  GripVertical, LayoutGrid, MonitorUp, MoreHorizontal, PanelRight, Play, Plus, Power, Rocket, Search,
-  Settings2, SlidersHorizontal, Sparkles, Star, Timer, Trash2, X, Zap,
+  GripVertical, LayoutGrid, MonitorUp, PanelRight, Play, Plus, Power, Search,
+  Settings2, SlidersHorizontal, Star, Timer, Trash2, X, Zap,
   Code2, Globe2, MessageCircle, Music2, Palette, StickyNote, TerminalSquare,
 } from "lucide-react";
 import { getPresetApps, useLauncherStore } from "./store";
-import { launchPath, loadConfig, saveConfig, setStartup } from "./lib/tauri";
+import { closeLauncher, launchPath, loadConfig, saveConfig, setStartup } from "./lib/tauri";
 import { defaultConfig, type AppItem, type IconName, type Preset } from "./types";
 
 const iconMap: Record<IconName, typeof Code2> = {
@@ -21,6 +21,34 @@ const iconColors: Record<IconName, string> = {
 };
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const normalizeSearchText = (value: string) => value
+  .normalize("NFKC")
+  .toLocaleLowerCase("ja")
+  .replace(/[ァ-ヶ]/g, (character) => String.fromCharCode(character.charCodeAt(0) - 0x60))
+  .replace(/[\s\-_./\\]+/g, "");
+
+const isSubsequence = (query: string, target: string) => {
+  let queryIndex = 0;
+  for (const character of target) {
+    if (character === query[queryIndex]) queryIndex += 1;
+    if (queryIndex === query.length) return true;
+  }
+  return false;
+};
+
+const matchesSearch = (app: AppItem, rawQuery: string) => {
+  const query = normalizeSearchText(rawQuery);
+  if (!query) return true;
+  const fields = [app.name, app.group, app.path];
+  const normalized = fields.map(normalizeSearchText);
+  const initials = normalizeSearchText(fields
+    .flatMap((field) => field.split(/[\s\-_./\\]+/))
+    .filter(Boolean)
+    .map((part) => part[0])
+    .join(""));
+  return normalized.some((field) => field.includes(query) || isSubsequence(query, field)) || initials.includes(query);
+};
 
 function AppIcon({ app, small = false }: { app: AppItem; small?: boolean }) {
   const Icon = iconMap[app.icon] ?? Folder;
@@ -37,6 +65,7 @@ function App() {
   const [toast, setToast] = useState("");
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [draggedQueueIndex, setDraggedQueueIndex] = useState<number | null>(null);
+  const [focusedIndex, setFocusedIndex] = useState(0);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
@@ -61,34 +90,68 @@ function App() {
     void saveConfig(config);
   }, [config, hydrated]);
 
+  const groups = useMemo(() => {
+    if (!hydrated) return [];
+    const counts = config.apps.reduce<Record<string, number>>((acc, app) => ({ ...acc, [app.group]: (acc[app.group] ?? 0) + 1 }), {});
+    return Object.entries(counts).sort((a, b) => a[0].localeCompare(b[0], "ja"));
+  }, [config.apps, hydrated]);
+
+  const visibleApps = useMemo(() => {
+    if (!hydrated) return [];
+    return config.apps.filter((app) => {
+      const groupMatch = activeGroup === "すべて" || (activeGroup === "お気に入り" ? app.favorite : app.group === activeGroup);
+      return groupMatch && matchesSearch(app, searchQuery);
+    });
+  }, [activeGroup, config.apps, hydrated, searchQuery]);
+
+  useEffect(() => {
+    setFocusedIndex((index) => Math.min(index, Math.max(visibleApps.length - 1, 0)));
+  }, [visibleApps.length]);
+
   useEffect(() => {
     const handleShortcut = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
         event.preventDefault();
         searchInputRef.current?.focus();
+        return;
       }
-      if (event.key === "Escape" && selectedIds.length > 0 && !modal) clearSelection();
+      if (modal) {
+        if (event.key === "Escape") setModal(null);
+        return;
+      }
+      const target = event.target as HTMLElement | null;
+      const isSearchInput = target === searchInputRef.current;
+      const isEditable = target?.matches("input, textarea, select, [contenteditable='true']") && !isSearchInput;
+      if (isEditable) return;
+      if (event.key === "ArrowDown" || event.key === "ArrowRight") {
+        event.preventDefault();
+        setFocusedIndex((index) => Math.min(index + 1, visibleApps.length - 1));
+      } else if (event.key === "ArrowUp" || event.key === "ArrowLeft") {
+        event.preventDefault();
+        setFocusedIndex((index) => Math.max(index - 1, 0));
+      } else if (event.key === "Enter" && visibleApps[focusedIndex]) {
+        event.preventDefault();
+        void runApp(visibleApps[focusedIndex]);
+      } else if (/^[1-9]$/.test(event.key) && !isSearchInput) {
+        const app = visibleApps[Number(event.key) - 1];
+        if (app) {
+          event.preventDefault();
+          void runApp(app);
+        }
+      } else if (event.key === "Escape") {
+        event.preventDefault();
+        if (searchQuery) setSearchQuery("");
+        else if (selectedIds.length) clearSelection();
+        else void closeLauncher();
+      }
     };
     window.addEventListener("keydown", handleShortcut);
     return () => window.removeEventListener("keydown", handleShortcut);
-  }, [clearSelection, modal, selectedIds.length]);
-
-  const groups = useMemo(() => {
-    const counts = config.apps.reduce<Record<string, number>>((acc, app) => ({ ...acc, [app.group]: (acc[app.group] ?? 0) + 1 }), {});
-    return Object.entries(counts).sort((a, b) => a[0].localeCompare(b[0], "ja"));
-  }, [config.apps]);
-
-  const visibleApps = useMemo(() => {
-    const query = searchQuery.trim().toLocaleLowerCase();
-    return config.apps.filter((app) => {
-      const groupMatch = activeGroup === "すべて" || (activeGroup === "お気に入り" ? app.favorite : app.group === activeGroup);
-      const searchMatch = !query || [app.name, app.group, app.path].join(" ").toLocaleLowerCase().includes(query);
-      return groupMatch && searchMatch;
-    });
-  }, [activeGroup, config.apps, searchQuery]);
+  }, [clearSelection, focusedIndex, modal, searchQuery, selectedIds.length, setSearchQuery, visibleApps]);
 
   const selectedApps = selectedIds.map((id) => config.apps.find((app) => app.id === id)).filter((app): app is AppItem => Boolean(app));
-  const favoriteCount = config.apps.filter((app) => app.favorite).length;
+  const appCount = hydrated ? config.apps.length : 0;
+  const favoriteCount = hydrated ? config.apps.filter((app) => app.favorite).length : 0;
 
   const runApp = async (app: AppItem) => {
     try {
@@ -139,17 +202,15 @@ function App() {
 
   return (
     <div className="app-shell">
-      <div className="ambient ambient-one" />
-      <div className="ambient ambient-two" />
       <header className="topbar">
         <div className="brand-lockup">
-          <div className="brand-mark"><Rocket size={18} /></div>
+          <div className="brand-mark">O</div>
           <div><div className="brand-name">ORBIT</div><div className="brand-subtitle">APP LAUNCHER</div></div>
         </div>
         <div className="topbar-actions">
-          <div className="status-pill"><span className="status-dot" /> システム準備完了</div>
+          <div className="status-pill" aria-live="polite"><span className="status-dot" /> {hydrated ? `${config.apps.length}件を読込済み` : "設定を読み込み中"}</div>
           <button className="icon-button" aria-label="設定" onClick={() => setModal("settings")}><Settings2 size={18} /></button>
-          <button className="avatar" aria-label="プロフィール">IK</button>
+          <button className="icon-button" aria-label="ランチャーを閉じる" title="閉じる (Esc)" onClick={() => void closeLauncher()}><X size={18} /></button>
         </div>
       </header>
 
@@ -157,7 +218,7 @@ function App() {
         <aside className="sidebar">
           <div className="sidebar-section">
             <div className="sidebar-label">ライブラリ</div>
-            <SidebarItem icon={<LayoutGrid size={17} />} label="すべて" count={config.apps.length} active={activeGroup === "すべて"} onClick={() => setActiveGroup("すべて")} />
+            <SidebarItem icon={<LayoutGrid size={17} />} label="すべて" count={appCount} active={activeGroup === "すべて"} onClick={() => setActiveGroup("すべて")} />
             <SidebarItem icon={<Star size={17} />} label="お気に入り" count={favoriteCount} active={activeGroup === "お気に入り"} onClick={() => setActiveGroup("お気に入り")} />
           </div>
           <div className="sidebar-section group-section">
@@ -171,28 +232,29 @@ function App() {
             {!config.presets.length && <div className="sidebar-empty">選択したアプリを<br />プリセットとして保存できます</div>}
           </div>
           <div className="sidebar-bottom">
-            <div className="tip-card"><Sparkles size={15} /><div><strong>ヒント</strong><span>Ctrl + クリックで<br />複数選択できます</span></div></div>
+            <div className="shortcut-guide"><strong>キーボード操作</strong><span>↑↓ 選択 ・ Enter 起動<br />1〜9 即時起動 ・ Esc 閉じる</span></div>
             <button className="sidebar-settings" onClick={() => setModal("settings")}><SlidersHorizontal size={16} /> 環境設定</button>
           </div>
         </aside>
 
         <main className="main-content">
           <div className="content-heading">
-            <div><div className="eyebrow"><span className="eyebrow-line" /> ワークスペース</div><h1>すばやく、<em>整然と。</em></h1><p>あなたの毎日を始めるアプリを、ここに。</p></div>
+            <div><div className="eyebrow"><span className="eyebrow-line" /> ライブラリ</div><h1>アプリを起動</h1><p>名前を入力して Enter。矢印キーや 1〜9 でも選べます。</p></div>
             <button className="primary-button" onClick={() => setModal("add")}><Plus size={18} /> アプリを追加</button>
           </div>
 
           <div className="toolbar">
-            <div className="search-box"><Search size={17} /><input ref={searchInputRef} value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="アプリを検索..." aria-label="アプリを検索" /><kbd>⌘ K</kbd></div>
-            <div className="view-actions"><span className="result-count">{visibleApps.length} APPS</span><button className="view-button active"><LayoutGrid size={16} /></button><button className="view-button"><MoreHorizontal size={17} /></button></div>
+            <div className="search-box"><Search size={17} /><input ref={searchInputRef} value={searchQuery} onChange={(event) => { setSearchQuery(event.target.value); setFocusedIndex(0); }} placeholder="名前・グループ・パスを検索" aria-label="アプリを検索" /><kbd>Ctrl K</kbd></div>
+            <div className="view-actions"><span className="result-count">{visibleApps.length}件</span></div>
           </div>
 
           <div className="section-title"><div><h2>{categoryLabel}</h2><span>{visibleApps.length} 個のアプリ</span></div><div className="selection-hint">{selectedIds.length > 0 ? <><span className="selection-dot" /> {selectedIds.length} 個を選択中</> : <><Command size={14} /> Ctrl + クリックで複数選択</>}</div></div>
 
           <div className="app-grid" onDragOver={(event) => event.preventDefault()}>
-            {visibleApps.map((app, index) => <AppCard key={app.id} app={app} selected={selectedIds.includes(app.id)} index={index} onClick={handleCardClick} onFavorite={() => updateApp(app.id, { favorite: !app.favorite })} onDelete={() => removeApp(app.id)} onDragStart={() => setDraggedId(app.id)} onDrop={() => { if (draggedId) reorderApps(draggedId, app.id); setDraggedId(null); }} />)}
-            {visibleApps.length === 0 && <EmptyState query={searchQuery} onAdd={() => setModal("add")} />}
-            <button className="add-card" onClick={() => setModal("add")}><span><Plus size={23} /></span><strong>アプリを追加</strong><small>exe / lnk / URL</small></button>
+            {!hydrated && <div className="loading-state" role="status">設定を読み込んでいます…</div>}
+            {hydrated && visibleApps.map((app, index) => <AppCard key={app.id} app={app} selected={selectedIds.includes(app.id)} keyboardFocused={index === focusedIndex} index={index} onFocus={() => setFocusedIndex(index)} onClick={handleCardClick} onFavorite={() => updateApp(app.id, { favorite: !app.favorite })} onDelete={() => removeApp(app.id)} onDragStart={() => setDraggedId(app.id)} onDrop={() => { if (draggedId) reorderApps(draggedId, app.id); setDraggedId(null); }} />)}
+            {hydrated && visibleApps.length === 0 && <EmptyState query={searchQuery} filtered={config.apps.length > 0} onAdd={() => setModal("add")} />}
+            {hydrated && config.apps.length > 0 && <button className="add-card" onClick={() => setModal("add")}><span><Plus size={23} /></span><strong>アプリを追加</strong><small>exe / lnk / URL</small></button>}
           </div>
 
           <div className="bottom-note"><span><MonitorUp size={14} /> Windowsスタートアップ</span><span className="note-separator" />{config.settings.launchOnStartup ? "自動起動は有効です" : "自動起動は無効です"}<button onClick={() => setModal("settings")}>設定を変更 <ChevronRight size={13} /></button></div>
@@ -213,17 +275,17 @@ function SidebarItem({ icon, label, count, active, onClick }: { icon: React.Reac
   return <button className={`sidebar-item ${active ? "active" : ""}`} onClick={onClick}><span className="sidebar-item-icon">{icon}</span><span>{label}</span><small>{count}</small></button>;
 }
 
-function AppCard({ app, selected, index, onClick, onFavorite, onDelete, onDragStart, onDrop }: { app: AppItem; selected: boolean; index: number; onClick: (event: React.MouseEvent, app: AppItem) => void; onFavorite: () => void; onDelete: () => void; onDragStart: () => void; onDrop: () => void }) {
-  return <motion.article className={`app-card ${selected ? "selected" : ""}`} layout initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: Math.min(index * 0.035, 0.25) }} draggable onDragStart={onDragStart} onDrop={onDrop} onDragOver={(event) => event.preventDefault()} onClick={(event) => onClick(event, app)}>
-    <div className="card-topline"><span className="drag-handle" title="ドラッグして並べ替え"><GripVertical size={15} /></span><button className={`favorite-button ${app.favorite ? "is-favorite" : ""}`} onClick={(event) => { event.stopPropagation(); onFavorite(); }} aria-label="お気に入り"><Star size={16} fill={app.favorite ? "currentColor" : "none"} /></button></div>
+function AppCard({ app, selected, keyboardFocused, index, onFocus, onClick, onFavorite, onDelete, onDragStart, onDrop }: { app: AppItem; selected: boolean; keyboardFocused: boolean; index: number; onFocus: () => void; onClick: (event: React.MouseEvent, app: AppItem) => void; onFavorite: () => void; onDelete: () => void; onDragStart: () => void; onDrop: () => void }) {
+  return <motion.article className={`app-card ${selected ? "selected" : ""} ${keyboardFocused ? "keyboard-focused" : ""}`} role="button" tabIndex={0} aria-label={`${app.name}を起動`} layout initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: Math.min(index * 0.035, 0.25) }} draggable onFocus={onFocus} onDragStart={onDragStart} onDrop={onDrop} onDragOver={(event) => event.preventDefault()} onClick={(event) => onClick(event, app)}>
+    <div className="card-topline"><span className="card-order"><span className="drag-handle" title="ドラッグして並べ替え"><GripVertical size={15} /></span>{index < 9 && <kbd>{index + 1}</kbd>}</span><button className={`favorite-button ${app.favorite ? "is-favorite" : ""}`} onClick={(event) => { event.stopPropagation(); onFavorite(); }} aria-label="お気に入り"><Star size={16} fill={app.favorite ? "currentColor" : "none"} /></button></div>
     <AppIcon app={app} />
     <div className="app-card-name">{app.name}</div><div className="app-card-meta"><span>{app.group}</span><span className="launch-mark"><Play size={10} fill="currentColor" /></span></div>
     <button className="card-menu" onClick={(event) => { event.stopPropagation(); onDelete(); }} aria-label="アプリを削除"><Trash2 size={14} /></button>
   </motion.article>;
 }
 
-function EmptyState({ query, onAdd }: { query: string; onAdd: () => void }) {
-  return <div className="empty-state"><div className="empty-orbit"><Search size={24} /></div><h3>{query ? "見つかりませんでした" : "まだアプリがありません"}</h3><p>{query ? "別のキーワードで検索してみてください。" : "よく使うアプリを登録して、ここから始めましょう。"}</p><button className="secondary-button" onClick={onAdd}><Plus size={16} /> アプリを追加</button></div>;
+function EmptyState({ query, filtered, onAdd }: { query: string; filtered: boolean; onAdd: () => void }) {
+  return <div className="empty-state"><div className="empty-orbit"><Search size={24} /></div><h3>{filtered ? "一致するアプリがありません" : "最初のアプリを登録しましょう"}</h3><p>{filtered ? `「${query || "選択中のグループ"}」の条件を変えてください。` : "名前と実行ファイルを登録すると、次回から検索してすぐ起動できます。"}</p>{!filtered && <button className="primary-button" onClick={onAdd}><Plus size={16} /> アプリを追加</button>}</div>;
 }
 
 function QueuePanel({ apps, onClear, onRun, onSave, onReorder, draggedIndex, setDraggedIndex }: { apps: AppItem[]; onClear: () => void; onRun: () => void; onSave: () => void; onReorder: (from: number, to: number) => void; draggedIndex: number | null; setDraggedIndex: (index: number | null) => void }) {

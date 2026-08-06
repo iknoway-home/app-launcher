@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { Config } from "../types";
 
 const LOCAL_CONFIG_KEY = "orbit-launcher-config";
@@ -34,5 +35,13 @@ export async function setStartup(enabled: boolean): Promise<void> {
     await invoke("set_startup", { enabled });
   } catch {
     // Startup integration is only available inside the Tauri desktop shell.
+  }
+}
+
+export async function closeLauncher(): Promise<void> {
+  try {
+    await getCurrentWindow().close();
+  } catch {
+    window.close();
   }
 }
