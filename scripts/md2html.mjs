@@ -18,46 +18,64 @@ import fs from "node:fs";
 import path from "node:path";
 
 const CSS = `
-:root{--bg:#fbfbfa;--fg:#26251f;--muted:#6b6a63;--line:#e3e1d9;--accent:#3a6ea5;--code-bg:#f2f1ec;--mark:#fff6cc}
-@media (prefers-color-scheme:dark){:root{--bg:#1b1c1e;--fg:#e6e4dd;--muted:#9b9a92;--line:#33353a;--accent:#7fb2e5;--code-bg:#26282c;--mark:#4a4326}}
+:root{color-scheme:light dark;--bg:#fbfaf7;--fg:#24231f;--muted:#64635d;--line:#d8d5cb;--accent:#2d5f78;--code-bg:#f1efe8;--mark:#fff1b8}
+@media (prefers-color-scheme:dark){:root{--bg:#1c1c1a;--fg:#e9e6dc;--muted:#aaa79e;--line:#41403b;--accent:#8fc1d8;--code-bg:#282825;--mark:#514821}}
 *{box-sizing:border-box}
+html{scroll-behavior:smooth}
 body{margin:0;background:var(--bg);color:var(--fg);
  font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP","Yu Gothic",sans-serif;
- font-size:16px;line-height:1.85;-webkit-text-size-adjust:100%}
-.wrap{max-width:860px;margin:0 auto;padding:2.5rem 1.25rem 6rem}
-.bar{max-width:860px;margin:0 auto;padding:1rem 1.25rem 0;font-size:.85rem;color:var(--muted)}
+ font-size:17px;line-height:1.9;-webkit-text-size-adjust:100%;overflow-wrap:anywhere}
+.wrap{width:min(100% - 2.5rem,74ch);margin:0 auto;padding:2.5rem 0 6rem}
+.bar{width:min(100% - 2.5rem,74ch);margin:0 auto;padding:1rem 0 0;font-size:.84rem;color:var(--muted)}
 .bar a{color:var(--muted)}
-h1,h2,h3,h4{line-height:1.4;font-weight:700;margin:2.2em 0 .8em}
-h1{font-size:1.9rem;margin-top:0;padding-bottom:.4em;border-bottom:2px solid var(--line)}
-h2{font-size:1.4rem;padding-bottom:.3em;border-bottom:1px solid var(--line)}
-h3{font-size:1.15rem}
-h4{font-size:1rem;color:var(--muted)}
-p,ul,ol,blockquote,table,pre{margin:0 0 1.1em}
-a{color:var(--accent);text-decoration:underline;text-underline-offset:2px}
-ul,ol{padding-left:1.6em}
-li{margin:.3em 0}
+h1,h2,h3,h4,h5,h6{scroll-margin-top:1rem;line-height:1.45;margin:2.4em 0 .75em}
+h1,h2{font-family:"Hiragino Mincho ProN","Yu Mincho",YuMincho,serif;font-weight:700}
+h1{font-size:clamp(1.75rem,5vw,2.15rem);margin-top:0;padding-bottom:.45em;border-bottom:2px solid var(--fg)}
+h2{font-size:1.48rem;padding-bottom:.3em;border-bottom:1px solid var(--line)}
+h3{font-size:1.16rem;font-weight:750}
+h4,h5,h6{font-size:1rem;font-weight:700;color:var(--muted)}
+p,ul,ol,blockquote,table,pre{margin:0 0 1.15em}
+a{color:var(--accent);text-decoration-thickness:1px;text-underline-offset:3px}
+a:focus-visible,summary:focus-visible{outline:3px solid var(--accent);outline-offset:3px}
+ul,ol{padding-left:1.55em}
+li{margin:.32em 0}
 li>input[type=checkbox]{margin-right:.45em}
-blockquote{border-left:3px solid var(--line);padding:.2em 0 .2em 1em;color:var(--muted)}
-hr{border:0;border-top:1px solid var(--line);margin:2.5em 0}
-code{background:var(--code-bg);padding:.15em .4em;border-radius:4px;font-size:.88em;
+blockquote{border-left:3px solid var(--line);padding:.15em 0 .15em 1em;color:var(--muted)}
+hr{border:0;border-top:1px solid var(--line);margin:2.75em 0}
+code{background:var(--code-bg);padding:.12em .35em;border-radius:3px;font-size:.88em;
  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
-pre{background:var(--code-bg);border:1px solid var(--line);border-radius:8px;padding:1em;overflow-x:auto}
-pre code{background:none;padding:0;font-size:.85em;line-height:1.6}
-.tablewrap{overflow-x:auto;margin:0 0 1.1em}
-table{border-collapse:collapse;width:100%;font-size:.92em}
-th,td{border:1px solid var(--line);padding:.5em .7em;text-align:left;vertical-align:top}
-th{background:var(--code-bg);font-weight:600;white-space:nowrap}
+pre{background:var(--code-bg);border:1px solid var(--line);border-radius:3px;padding:1em;overflow:auto;max-width:100%}
+pre code{background:none;padding:0;font-size:.84em;line-height:1.65;overflow-wrap:normal;word-break:normal;white-space:pre}
+.tablewrap{max-width:100%;overflow-x:auto;margin:0 0 1.25em;border:1px solid var(--line)}
+table{border-collapse:collapse;width:100%;min-width:max-content;margin:0;font-size:.9em;font-variant-numeric:tabular-nums}
+th,td{border:0;border-bottom:1px solid var(--line);border-right:1px solid var(--line);padding:.52em .72em;text-align:left;vertical-align:top}
+tr:last-child td{border-bottom:0} th:last-child,td:last-child{border-right:0}
+th{background:var(--code-bg);font-weight:700;white-space:nowrap}
+.align-center{text-align:center}.align-right{text-align:right}
 img{max-width:100%;height:auto}
-.toc{background:var(--code-bg);border:1px solid var(--line);border-radius:8px;padding:.6em 1em;margin:0 0 2.5em}
-.toc summary{cursor:pointer;font-weight:600}
-.toc ul{margin:.7em 0 .3em;padding-left:1.2em}
-.toc li{margin:.15em 0;font-size:.92em}
-.cards{list-style:none;padding:0;display:grid;gap:.75rem}
-.cards a{display:block;border:1px solid var(--line);border-radius:10px;padding:.9em 1.1em;
- text-decoration:none;color:var(--fg);background:var(--code-bg)}
-.cards a:hover{border-color:var(--accent)}
-.cards .n{font-weight:600}
-.cards .m{display:block;font-size:.82em;color:var(--muted);margin-top:.25em}
+.toc{border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:.7em 0;margin:0 0 2.75em}
+.toc summary{cursor:pointer;font-weight:700}
+.toc ul{margin:.65em 0 .2em;padding-left:1.25em}
+.toc li{margin:.18em 0;font-size:.9em;line-height:1.55}
+.index-note{color:var(--muted);font-size:.9em}
+.entries{list-style:none;padding:0;margin-top:2rem;border-top:1px solid var(--line)}
+.entries li{margin:0;border-bottom:1px solid var(--line)}
+.entries a{display:grid;grid-template-columns:minmax(12rem,1fr) auto;gap:.5rem 1.5rem;padding:.85em .2em;
+ text-decoration:none;color:var(--fg)}
+.entries a:hover .n{text-decoration:underline;text-underline-offset:3px}
+.entries .n{font-weight:700}
+.entries .m{font-size:.78em;color:var(--muted);text-align:right;font-variant-numeric:tabular-nums}
+@media (max-width:600px){
+ body{font-size:16px;line-height:1.82}.wrap{width:min(100% - 2rem,74ch);padding-top:1.8rem}.bar{width:calc(100% - 2rem)}
+ h2{font-size:1.32rem}.entries a{grid-template-columns:1fr;gap:.15rem}.entries .m{text-align:left}
+ th,td{padding:.48em .6em}
+}
+@media print{
+ :root{--bg:#fff;--fg:#111;--muted:#444;--line:#bbb;--accent:#111;--code-bg:#f3f3f3}
+ body{font-size:11pt;line-height:1.65}.bar,.toc{display:none}.wrap{width:auto;max-width:none;padding:0}
+ h1,h2,h3,h4{break-after:avoid}pre,blockquote,.tablewrap,img{break-inside:avoid}.tablewrap{overflow:visible}table{min-width:0}
+ a{color:inherit;text-decoration:none}a[href^="http"]::after{content:" (" attr(href) ")";font-size:.8em}
+}
 `;
 
 /* ---------- Markdown → HTML (最小構成の自前パーサ) ---------- */
@@ -89,6 +107,7 @@ function render(md) {
   const lines = md.replace(/\r\n?/g, "\n").split("\n");
   const out = [];
   const toc = [];
+  const usedIds = new Map();
   let i = 0;
 
   const listItem = (text) =>
@@ -116,7 +135,10 @@ function render(md) {
     if (h) {
       const lv = h[1].length;
       const text = h[2].replace(/\s*#+\s*$/, "");
-      const id = slug(text) || `h${out.length}`;
+      const baseId = slug(text) || `h${out.length}`;
+      const duplicate = usedIds.get(baseId) || 0;
+      usedIds.set(baseId, duplicate + 1);
+      const id = duplicate ? `${baseId}-${duplicate + 1}` : baseId;
       if (lv >= 2 && lv <= 3) toc.push({ lv, id, text: esc(text) });
       out.push(`<h${lv} id="${id}">${inline(text)}</h${lv}>`);
       i++;
@@ -130,12 +152,17 @@ function render(md) {
     if (/\|/.test(line) && /^\s*\|?[\s:|-]+\|[\s:|-]*$/.test(lines[i + 1] || "")) {
       const cells = (r) => r.trim().replace(/^\||\|$/g, "").split("|").map((c) => c.trim());
       const head = cells(line);
+      const align = cells(lines[i + 1]).map((cell) => {
+        const left = cell.startsWith(":");
+        const right = cell.endsWith(":");
+        return left && right ? "center" : right ? "right" : "left";
+      });
       i += 2;
       const rows = [];
       while (i < lines.length && lines[i].includes("|") && lines[i].trim()) rows.push(cells(lines[i++]));
       out.push(
-        `<div class="tablewrap"><table><thead><tr>${head.map((c) => `<th>${inline(c)}</th>`).join("")}</tr></thead>` +
-        `<tbody>${rows.map((r) => `<tr>${r.map((c) => `<td>${inline(c)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`
+        `<div class="tablewrap" role="region" aria-label="横にスクロールできる表" tabindex="0"><table><thead><tr>${head.map((c, col) => `<th class="align-${align[col] || "left"}">${inline(c)}</th>`).join("")}</tr></thead>` +
+        `<tbody>${rows.map((r) => `<tr>${r.map((c, col) => `<td class="align-${align[col] || "left"}">${inline(c)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`
       );
       continue;
     }
@@ -188,10 +215,13 @@ function page(title, md, backHref) {
   const { body, toc } = render(md);
   const tocHtml =
     toc.length >= 3
-      ? `<details class="toc"><summary>目次</summary><ul>${toc
+      ? `<details class="toc" open><summary>目次</summary><ul>${toc
           .map((t) => `<li style="margin-left:${(t.lv - 2) * 1.1}em"><a href="#${t.id}">${t.text}</a></li>`)
           .join("")}</ul></details>`
       : "";
+  const content = tocHtml && /<h1\b/.test(body)
+    ? body.replace(/(<h1\b[^>]*>[\s\S]*?<\/h1>)/, `$1\n${tocHtml}`)
+    : `${tocHtml}${body}`;
   return `<!doctype html>
 <html lang="ja">
 <head>
@@ -201,10 +231,9 @@ function page(title, md, backHref) {
 <style>${CSS}</style>
 </head>
 <body>
-${backHref ? `<nav class="bar"><a href="${backHref}">← 一覧へ</a></nav>` : ""}
+${backHref ? `<nav class="bar" aria-label="パンくず"><a href="${backHref}">一覧へ戻る</a></nav>` : ""}
 <main class="wrap">
-${tocHtml}
-${body}
+${content}
 </main>
 </body>
 </html>`;
@@ -274,7 +303,7 @@ for (const dir of dirs) {
     for (const e of fs.readdirSync(dir, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name, "ja"))) {
       if (e.isDirectory() && !e.name.startsWith(".") && !SKIP_DIRS.has(e.name)) {
         const n = fs.readdirSync(path.join(dir, e.name)).filter((f) => f.toLowerCase().endsWith(".md")).length;
-        entries.push({ href: `${encodeURIComponent(e.name)}/index.html`, title: `📁 ${e.name}`, meta: `フォルダ${n ? ` · ${n} 件` : ""}` });
+        entries.push({ href: `${encodeURIComponent(e.name)}/index.html`, title: e.name, meta: `フォルダ${n ? ` · ${n} 件` : ""}` });
       }
     }
   }
@@ -282,7 +311,10 @@ for (const dir of dirs) {
   // Markdown
   const mds = fs.readdirSync(dir)
     .filter((f) => f.toLowerCase().endsWith(".md") && !SKIP_FILES.test(f))
-    .sort((a, b) => a.localeCompare(b, "ja"));
+    .sort((a, b) => {
+      const modified = fs.statSync(path.join(dir, b)).mtimeMs - fs.statSync(path.join(dir, a)).mtimeMs;
+      return modified || a.localeCompare(b, "ja");
+    });
 
   for (const f of mds) {
     const src = path.join(dir, f);
@@ -301,10 +333,10 @@ for (const dir of dirs) {
   if (!entries.length) continue;
 
   const name = rel || label;
-  const indexMd = `# ${name}\n\n編集は \`.md\`、読むのは \`.html\` を使ってください。\n`;
+  const indexMd = `# ${name}\n\n文書は更新が新しい順です。編集は \`.md\`、閲覧は \`.html\` を使います。\n`;
   const indexHtml = page(name, indexMd, back).replace(
     "</main>",
-    `<ul class="cards">${entries
+    `<ul class="entries">${entries
       .map((e) => `<li><a href="${e.href}"><span class="n">${esc(e.title)}</span><span class="m">${esc(e.meta)}</span></a></li>`)
       .join("")}</ul>\n</main>`
   );
