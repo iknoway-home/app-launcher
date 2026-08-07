@@ -265,7 +265,7 @@ function App() {
 
       <AnimatePresence>{modal === "add" && <AddModal onClose={() => setModal(null)} onSubmit={(app) => { addApp(app); setModal(null); notify(`${app.name} をライブラリに追加しました`); }} />}</AnimatePresence>
       <AnimatePresence>{modal === "preset" && <PresetModal count={selectedApps.length} onClose={() => setModal(null)} onSubmit={(name, delay) => { savePreset(name, delay); setModal(null); notify(`「${name}」を保存しました`); }} />}</AnimatePresence>
-      <AnimatePresence>{modal === "settings" && <SettingsModal settings={config.settings} onClose={() => setModal(null)} onStartupToggle={handleStartupToggle} onUpdate={(patch) => updateSettings(patch)} presets={config.presets} onRunPreset={runPreset} onDeletePreset={removePreset} />}</AnimatePresence>
+      <AnimatePresence>{modal === "settings" && <SettingsModal settings={config.settings} onClose={() => setModal(null)} onStartupToggle={handleStartupToggle} presets={config.presets} onRunPreset={runPreset} onDeletePreset={removePreset} />}</AnimatePresence>
       <AnimatePresence>{toast && <motion.div className="toast" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 16 }}><Check size={16} /> {toast}</motion.div>}</AnimatePresence>
     </div>
   );
@@ -307,10 +307,32 @@ function PresetModal({ count, onClose, onSubmit }: { count: number; onClose: () 
   return <ModalFrame title="プリセットを保存" eyebrow="起動キュー" onClose={onClose}><form className="modal-form" onSubmit={(event) => { event.preventDefault(); if (name.trim()) onSubmit(name.trim(), Math.max(0, Number(delay) || 0)); }}><div className="preset-save-callout"><Zap size={19} /><span><strong>{count} 個のアプリ</strong>を現在の順番で保存します</span></div><label>プリセット名<input autoFocus value={name} onChange={(event) => setName(event.target.value)} placeholder="例：朝の仕事セット" /></label><label>アプリ間ディレイ（ミリ秒）<input type="number" min="0" step="100" value={delay} onChange={(event) => setDelay(event.target.value)} /><small>2つ目以降のアプリを起動するまでの待ち時間</small></label><div className="modal-footer"><button type="button" className="secondary-button" onClick={onClose}>キャンセル</button><button className="primary-button" disabled={!name.trim()}><Download size={16} /> 保存する</button></div></form></ModalFrame>;
 }
 
-function SettingsModal({ settings, onClose, onStartupToggle, onUpdate, presets, onRunPreset, onDeletePreset }: { settings: typeof defaultConfig.settings; onClose: () => void; onStartupToggle: (enabled: boolean) => void; onUpdate: (patch: Partial<typeof defaultConfig.settings>) => void; presets: Preset[]; onRunPreset: (preset: Preset) => void; onDeletePreset: (id: string) => void }) {
-  return <ModalFrame title="環境設定" eyebrow="ORBIT SETTINGS" onClose={onClose} wide><div className="settings-layout"><div className="settings-main"><div className="setting-group"><div className="setting-heading"><div className="setting-icon"><Power size={17} /></div><div><strong>Windows起動時</strong><span>Orbitを自動的に起動します</span></div><Toggle checked={settings.launchOnStartup} onChange={onStartupToggle} /></div><div className="setting-heading"><div className="setting-icon"><PanelRight size={17} /></div><div><strong>タスクトレイに常駐</strong><span>閉じてもバックグラウンドで待機</span></div><Toggle checked={settings.startInTray} onChange={(value) => onUpdate({ startInTray: value })} /></div><div className="setting-heading"><div className="setting-icon"><Command size={17} /></div><div><strong>グローバルホットキー</strong><span>どこからでもランチャーを呼び出す</span></div><kbd className="hotkey-value">{settings.globalHotkey}</kbd></div></div><div className="setting-group"><div className="setting-group-title">表示</div><div className="theme-row"><button className="theme-choice selected-theme"><span className="theme-swatch dark-swatch" />ダーク</button><button className="theme-choice" onClick={() => onUpdate({ theme: "light" })}><span className="theme-swatch light-swatch" />ライト</button></div></div></div><div className="settings-presets"><div className="setting-group-title">保存済みプリセット</div>{presets.map((preset) => <div className="settings-preset" key={preset.id}><div><Zap size={14} /><span>{preset.name}</span></div><div><button onClick={() => onRunPreset(preset)} aria-label="実行"><Play size={14} fill="currentColor" /></button><button onClick={() => onDeletePreset(preset.id)} aria-label="削除"><Trash2 size={14} /></button></div></div>)}{!presets.length && <p className="muted-copy">保存されたプリセットはありません。</p>}</div></div><div className="modal-footer settings-footer"><span className="settings-version">ORBIT v0.1.0 · 設定は自動保存されます</span><button className="primary-button" onClick={onClose}>完了</button></div></ModalFrame>;
+function SettingsModal({ settings, onClose, onStartupToggle, presets, onRunPreset, onDeletePreset }: { settings: typeof defaultConfig.settings; onClose: () => void; onStartupToggle: (enabled: boolean) => void; presets: Preset[]; onRunPreset: (preset: Preset) => void; onDeletePreset: (id: string) => void }) {
+  return <ModalFrame title="環境設定" eyebrow="ORBIT SETTINGS" onClose={onClose} wide>
+    <div className="settings-layout">
+      <section className="settings-section" aria-labelledby="basic-settings-title">
+        <div className="settings-section-heading"><div><h3 id="basic-settings-title">基本設定</h3><p>起動と表示に関する設定です。</p></div></div>
+        <div className="setting-group">
+          <div className="setting-heading"><div className="setting-icon"><Power size={17} /></div><div><strong>Windows起動時</strong><span>Orbitを自動的に起動します</span></div><span className="setting-status available">利用可能</span><Toggle checked={settings.launchOnStartup} onChange={onStartupToggle} label="Windows起動時の自動起動" /></div>
+        </div>
+        <div className="setting-group">
+          <div className="setting-group-title">表示テーマ</div>
+          <div className="theme-row"><button className="theme-choice selected-theme" aria-pressed="true"><span className="theme-swatch dark-swatch" />ダーク</button><button className="theme-choice" disabled title="ライトテーマは未実装です"><span className="theme-swatch light-swatch" />ライト <span className="setting-status pending">未実装</span></button></div>
+        </div>
+      </section>
+      <section className="settings-section" aria-labelledby="advanced-settings-title">
+        <div className="settings-section-heading"><div><h3 id="advanced-settings-title">詳細設定</h3><p>常駐動作と起動セットを管理します。</p></div></div>
+        <div className="setting-group">
+          <div className="setting-heading"><div className="setting-icon"><PanelRight size={17} /></div><div><strong>タスクトレイに常駐</strong><span>閉じてもバックグラウンドで待機</span></div><span className="setting-status pending">未実装</span><Toggle checked={false} onChange={() => {}} disabled label="タスクトレイに常駐" /></div>
+          <div className="setting-heading"><div className="setting-icon"><Command size={17} /></div><div><strong>グローバルホットキー</strong><span>どこからでもランチャーを呼び出す</span></div><span className="setting-status pending">未実装</span><kbd className="hotkey-value">{settings.globalHotkey}</kbd></div>
+        </div>
+        <div className="settings-presets"><div className="setting-group-title">保存済みプリセット</div>{presets.map((preset) => <div className="settings-preset" key={preset.id}><div><Zap size={14} /><span>{preset.name}</span></div><div><button onClick={() => onRunPreset(preset)} aria-label="実行"><Play size={14} fill="currentColor" /></button><button onClick={() => onDeletePreset(preset.id)} aria-label="削除"><Trash2 size={14} /></button></div></div>)}{!presets.length && <p className="muted-copy">保存されたプリセットはありません。</p>}</div>
+      </section>
+    </div>
+    <div className="modal-footer settings-footer"><span className="settings-version">ORBIT v0.1.0 · 利用可能な設定は自動保存されます</span><button className="primary-button" onClick={onClose}>完了</button></div>
+  </ModalFrame>;
 }
 
-function Toggle({ checked, onChange }: { checked: boolean; onChange: (value: boolean) => void }) { return <button className={`toggle ${checked ? "checked" : ""}`} onClick={() => onChange(!checked)} aria-pressed={checked}><span /></button>; }
+function Toggle({ checked, onChange, disabled = false, label }: { checked: boolean; onChange: (value: boolean) => void; disabled?: boolean; label: string }) { return <button className={`toggle ${checked ? "checked" : ""}`} onClick={() => onChange(!checked)} aria-pressed={checked} aria-label={label} disabled={disabled}><span /></button>; }
 
 export default App;
