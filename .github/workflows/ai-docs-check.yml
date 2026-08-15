@@ -1,0 +1,67 @@
+# AI 用ドキュメントの構成チェック。
+#
+# 2 つの役割があります。
+#   check  : PR / push のたびに、決定的な不具合（壊れたリンク、規格外の SKILL.md など）で落とす。
+#   remind : 月 1 で棚卸しのきっかけだけをイシューにする。日数は正しさの証明ではないので、CI は落とさない。
+#
+# GitHub を使わないリポジトリでは、このファイルは削除してよい。
+name: ai-docs-check
+
+on:
+  pull_request:
+  push:
+    branches: [main, master]
+  schedule:
+    - cron: "0 21 1 * *" # 毎月 1 日 6:00 JST
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    if: github.event_name == 'pull_request' || github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check AI docs structure
+        run: bash scripts/ai-docs-check.sh --check
+
+  remind:
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Collect status
+        id: status
+        run: |
+          bash scripts/ai-docs-check.sh > result.txt 2>&1 || true
+          if [ -s result.txt ]; then
+            echo "has_output=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_output=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Open reminder issue
+        if: steps.status.outputs.has_output == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          title="AI ドキュメント棚卸し"
+          existing=$(gh issue list --state open --search "in:title \"$title\"" --json number --jq 'length')
+          if [ "$existing" -eq 0 ]; then
+            {
+              cat result.txt
+              echo ""
+              echo "AI エージェントに \`update-ai-docs\` スキルの実行を依頼してください（Claude Code では \`/update-ai-docs\`）。"
+              echo ""
+              echo "_ai-docs-check ワークフローによる自動作成です。対応不要なら閉じてください。_"
+            } > body.txt
+            gh issue create --title "$title" --body-file body.txt
+          fi

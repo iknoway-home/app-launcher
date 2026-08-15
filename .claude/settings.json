@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(bash scripts/ai-docs-check.sh)",
+      "Bash(bash scripts/ai-docs-check.sh:*)"
+    ]
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash",
+            "args": ["${CLAUDE_PROJECT_DIR}/scripts/ai-docs-check.sh"],
+            "timeout": 15
+          }
+        ]
+      }
+    ]
+  }
+}
