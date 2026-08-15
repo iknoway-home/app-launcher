@@ -7,10 +7,13 @@
 #
 # このスクリプトは 2 種類のことを見ます。
 #
-#   [ERROR] 決定的な不具合。壊れたリンク、規格外の SKILL.md、参照先の消滅など。
-#           機械的に判定できるので CI で落として構わない。
-#   [HINT]  参考情報。「未設定」の残数や、更新されていない文書の数。
-#           正しさの証明ではないため、これだけでは CI を落とさない。
+#   [ERROR] 決定的な不具合。規格外の SKILL.md、シンボリックリンクの切れなど。
+#           曖昧さなく機械的に判定できるものだけ。CI で落として構わない。
+#   [HINT]  参考情報。文書が指すパスの陳腐化、「未設定」の残数、更新されていない文書の数。
+#           推測を含む判定なので、これだけでは CI を落とさない。
+#
+# 判定を追加するときは、まずどちらかを決めること。
+# 例外リストを足したくなったら、それは ERROR にすべきでない判定を ERROR にしている合図。
 #
 # 「30 日経ったから古い」は文書の正しさを測っていません。あくまで棚卸しのきっかけです。
 # 出力は SessionStart フックでコンテキストに入るため、短く保つこと。
@@ -84,23 +87,17 @@ if [ -f AGENTS.md ]; then
   fi
 fi
 
-# --- 5. 文書内リンクの切れ ---------------------------------------------------
-# 「まだ無くてよいもの」は除外する。条件を満たしたときに作る追加文書、
-# プロジェクトによって有無が変わる設定ファイル、コマンド例に出てくるファイルなど。
-is_optional() {
-  case "$1" in
-    ai-docs/API.md|ai-docs/DATA.md|ai-docs/PERFORMANCE.md|ai-docs/GLOSSARY.md) return 0 ;;
-    .mcp.json|.env.example|.codex/config.toml|.codex/hooks.json) return 0 ;;
-    package.json|pyproject.toml|go.mod|Cargo.toml|Makefile) return 0 ;;
-    */AGENTS.md) return 0 ;;
-  esac
-  return 1
-}
-
+# --- 5. 文書が指すパスの陳腐化（ヒント） -------------------------------------
+# バッククォートは Markdown では「コード・リテラル」の意味であって、
+# 「このファイルは実在する」という主張ではない。ここは書式から意図を推測しているので、
+# 判定は必ず外れることがある。だから ERROR にはせず HINT に留める。
+#
+# 対象はこのプロジェクトが自分で書いた文書だけ。`.agents/skills/` は全リポジトリ共通の
+# 雛形で、そこに出てくるパスは「ここに書け」という指示であって実在の主張ではない。
 missing=""
-for doc in AGENTS.md DESIGN.md $(find ai-docs .agents/skills -name '*.md' 2>/dev/null); do
+for doc in AGENTS.md DESIGN.md $(find ai-docs -name '*.md' 2>/dev/null); do
   [ -f "$doc" ] || continue
-  # DECISIONS.md は過去の記録。当時存在したファイルを指すのは正しいので対象外にする。
+  # DECISIONS.md は過去の記録。当時存在したファイルを指すのは正しいので対象外。
   case "$doc" in */DECISIONS.md|DECISIONS.md) continue ;; esac
   for ref in $(grep -oE '`[A-Za-z0-9._/-]+\.(md|sh|json|yml)`' "$doc" 2>/dev/null | tr -d '`' | sort -u); do
     # パスらしきもの（スラッシュを含む）だけ見る。裸のファイル名は文中の言及のことが多い。
@@ -108,17 +105,6 @@ for doc in AGENTS.md DESIGN.md $(find ai-docs .agents/skills -name '*.md' 2>/dev
     [ -e "$ref" ] && continue
     # ドキュメントからの相対パスとしても解決してみる（docs/README.md の `../DESIGN.md` など）
     [ -e "$(dirname "$doc")/$ref" ] && continue
-    is_optional "$ref" && continue
-    # 同梱スキルは全プロジェクト共通の雛形で、bootstrap-ai-docs が
-    # 「該当しなければ削除してよい」としている文書を参照している。
-    # スキル側からの参照に限り、その削除可能な文書は欠落扱いしない。
-    case "$doc" in
-      .agents/skills/*)
-        case "$ref" in
-          ai-docs/OPERATIONS.md|ai-docs/SECURITY.md|ai-docs/ENVIRONMENT.md|ai-docs/ROADMAP.md) continue ;;
-        esac
-        ;;
-    esac
     # .gitignore で除外されているものは実行時に作られる成果物。
     # クリーンな checkout に無いのが正常なので、参照を書いてよい。
     git check-ignore -q "$ref" 2>/dev/null && continue
@@ -127,11 +113,13 @@ for doc in AGENTS.md DESIGN.md $(find ai-docs .agents/skills -name '*.md' 2>/dev
   done
 done
 if [ -n "$(printf '%s' "$missing" | tr -d ' ')" ]; then
-  err "存在しないファイルを参照しています:$(printf '%s' "$missing" | tr -s ' ')"
+  hint "文書が指すパスが見つかりません:$(printf '%s' "$missing" | tr -s ' ')(改名・削除したなら文書を直す。単なる言及なら無視してよい)"
 fi
 
 # --- 6. 「未設定」の残数（ヒント） -------------------------------------------
-placeholders="$(grep -rl "未設定" AGENTS.md DESIGN.md ai-docs 2>/dev/null | wc -l | tr -d ' ')"
+# 地の文で「未設定」という語に触れただけのものを拾わない。
+# マーカーとして意味を持つのは、表のセル 1 つ分か、`項目: 未設定` の値のときだけ。
+placeholders="$(grep -rlE '\|[[:space:]]*未設定[[:space:]]*\||[:：][[:space:]]*未設定[[:space:]]*$'   AGENTS.md DESIGN.md ai-docs 2>/dev/null | wc -l | tr -d ' ')"
 if [ "${placeholders:-0}" -gt 0 ]; then
   hint "${placeholders} ファイルに「未設定」が残っています。判明した情報があれば埋めてください（該当しない項目は「なし」と書く）。初回なら bootstrap-ai-docs スキルを実行してください。"
 fi
