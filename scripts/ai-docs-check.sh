@@ -109,6 +109,19 @@ for doc in AGENTS.md DESIGN.md $(find ai-docs .agents/skills -name '*.md' 2>/dev
     # ドキュメントからの相対パスとしても解決してみる（docs/README.md の `../DESIGN.md` など）
     [ -e "$(dirname "$doc")/$ref" ] && continue
     is_optional "$ref" && continue
+    # 同梱スキルは全プロジェクト共通の雛形で、bootstrap-ai-docs が
+    # 「該当しなければ削除してよい」としている文書を参照している。
+    # スキル側からの参照に限り、その削除可能な文書は欠落扱いしない。
+    case "$doc" in
+      .agents/skills/*)
+        case "$ref" in
+          ai-docs/OPERATIONS.md|ai-docs/SECURITY.md|ai-docs/ENVIRONMENT.md|ai-docs/ROADMAP.md) continue ;;
+        esac
+        ;;
+    esac
+    # .gitignore で除外されているものは実行時に作られる成果物。
+    # クリーンな checkout に無いのが正常なので、参照を書いてよい。
+    git check-ignore -q "$ref" 2>/dev/null && continue
     case "$missing" in *" $ref "*) continue ;; esac
     missing="$missing $ref "
   done
