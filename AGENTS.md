@@ -29,7 +29,7 @@
 | 認証・権限・秘密情報 | `ai-docs/SECURITY.md` |
 | UI / UX / デザイン | `DESIGN.md` |
 | 優先度・今はやらないこと | `ai-docs/ROADMAP.md` |
-| 再利用する作業手順 | `.agents/skills/` |
+| 再利用する作業手順 | `.agents/skills/`（このリポ固有）と、端末の `~/.agents/skills/`（全リポ共通。ai-docs-template の `install.py` で入る） |
 
 **コードと文書が食い違っていたら、コードが正です。** 気づいたら文書を直してください。
 
