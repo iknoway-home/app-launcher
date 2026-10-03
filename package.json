@@ -3,9 +3,13 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
+  "engines": {
+    "node": ">=22 <23"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "check:desktop": "cargo check --manifest-path src-tauri/Cargo.toml",
     "preview": "vite preview",
     "tauri": "tauri",
     "plans:html": "node scripts/md2html.mjs plans"
