@@ -1,7 +1,6 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Inter:wght@400;500;600;700;800&family=Noto+Sans+JP:wght@400;500;600;700&display=swap');
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import 'tailwindcss';
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Inter:wght@400;500;600;700;800&family=Noto+Sans+JP:wght@400;500;600;700&display=swap') layer(base);
+@config "../tailwind.config.js";
 
 :root { font-family: Inter, "Noto Sans JP", system-ui, sans-serif; color: #e8e9ef; background: #10121a; font-synthesis: none; text-rendering: optimizeLegibility; }
 * { box-sizing: border-box; }
