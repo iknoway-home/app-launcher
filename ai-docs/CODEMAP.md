@@ -1,5 +1,11 @@
 # CODEMAP.md
 
+## 原本・生成物・ローカルキャッシュ
+
+- 原本は `src/` と `src-tauri/`。閲覧用計画の原本は `plans/*.md`。
+- 生成物は `dist/`（`npm run build`）と `plans/*.html`（`npm run plans:html`）で、手編集しない。
+- `node_modules/`、`src-tauri/target/`、`build/`、`test-results/`、`playwright-report/`、`.wrangler/` はローカルキャッシュとして Git 管理しない。
+
 このファイルは、探索に時間がかかる機能の入口だけを記録します。
 
 ## 自動更新ルール
